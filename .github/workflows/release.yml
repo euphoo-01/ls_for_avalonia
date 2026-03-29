@@ -1,0 +1,63 @@
+name: Build and Release LSP
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            asset_name: avalonia-ls-windows-x86_64.zip
+            is_zip: true
+          - os: ubuntu-latest
+            rid: linux-x64
+            asset_name: avalonia-ls-linux-x86_64.tar.gz
+            is_zip: false
+          - os: ubuntu-latest
+            rid: linux-arm64
+            asset_name: avalonia-ls-linux-aarch64.tar.gz
+            is_zip: false
+          - os: macos-latest
+            rid: osx-x64
+            asset_name: avalonia-ls-macos-x86_64.tar.gz
+            is_zip: false
+          - os: macos-latest
+            rid: osx-arm64
+            asset_name: avalonia-ls-macos-aarch64.tar.gz
+            is_zip: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0'
+
+      - name: Publish .NET App
+        run: dotnet publish -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o ./publish
+
+      - name: Create Zip Archive (Windows)
+        if: ${{ matrix.is_zip == true }}
+        run: Compress-Archive -Path ./publish/* -DestinationPath ${{ matrix.asset_name }}
+
+      - name: Create Tar Archive (Unix)
+        if: ${{ matrix.is_zip == false }}
+        run: tar -czvf ${{ matrix.asset_name }} -C ./publish .
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset_name }}
